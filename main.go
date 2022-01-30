@@ -11,8 +11,12 @@
 package main
 
 import (
+	"fmt"
 	"image"
 	"image/draw"
+	"io/ioutil"
+	"math/big"
+	"strings"
 	"time"
 
 	"github.com/ev3go/ev3"
@@ -20,14 +24,31 @@ import (
 	qrcode "github.com/skip2/go-qrcode"
 )
 
+func check(e error) {
+	if e != nil {
+		panic(e)
+	}
+}
+
 func main() {
 	ev3.LCD.Init(true)
 	defer ev3.LCD.Close()
 
+	// Read secret from system
+	data, err := ioutil.ReadFile("/var/lib/sling/secret")
+	check(err)
+	fmt.Println(string(data))
+	secret := string(data)
+	secret = strings.TrimSpace(secret)
+	secret = strings.ReplaceAll(secret, "-", "")
+	n := new(big.Int)
+	n.SetString(secret, 16)
+	fmt.Println(n)
+	secret = n.Text(62)
+	fmt.Println(secret)
+
 	q, err := qrcode.New("Skne66[bbBj2Ss#qjW/", qrcode.Low) // 25 x 25 without border
-	if err != nil {
-		panic(err)
-	}
+	check(err)
 	q.DisableBorder = true
 	s := q.ToString(true)
 	b := []byte(s)
