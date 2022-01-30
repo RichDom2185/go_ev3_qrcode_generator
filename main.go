@@ -11,7 +11,6 @@
 package main
 
 import (
-	"fmt"
 	"image"
 	"image/draw"
 	"io/ioutil"
@@ -37,17 +36,15 @@ func main() {
 	// Read secret from system
 	data, err := ioutil.ReadFile("/var/lib/sling/secret")
 	check(err)
-	fmt.Println(string(data))
 	secret := string(data)
 	secret = strings.TrimSpace(secret)
 	secret = strings.ReplaceAll(secret, "-", "")
-	n := new(big.Int)
-	n.SetString(secret, 16)
-	fmt.Println(n)
-	secret = n.Text(62)
-	fmt.Println(secret)
+	secret_int := new(big.Int)
+	secret_int.SetString(secret, 16)
+	secret = secret_int.Text(62)
 
-	q, err := qrcode.New("Skne66[bbBj2Ss#qjW/", qrcode.Low) // 25 x 25 without border
+	// Create QR code
+	q, err := qrcode.New(secret, qrcode.Low) // 25 x 25 without border
 	check(err)
 	q.DisableBorder = true
 	s := q.ToString(true)
@@ -55,7 +52,7 @@ func main() {
 
 	var output []byte
 
-	// empty row of 25 bytes
+	// empty row of 24 bytes
 	empty_row := make([]byte, 24)
 
 	// 128 rows = 25 * 5 + 3 blank rows
@@ -94,7 +91,7 @@ func main() {
 				}
 			}
 
-			row = append(row, make([]byte, 8)...)
+			row = append(row, make([]byte, 8)...) // complete row with 8 bytes
 
 			// 128 rows = 25 * 5 + 3 blank rows
 			output = append(output, row...)
@@ -102,8 +99,9 @@ func main() {
 			output = append(output, row...)
 			output = append(output, row...)
 			output = append(output, row...)
-			row = nil
-			bitarray = nil
+
+			row = nil      // start off a new row
+			bitarray = nil // reset bitarray
 			i += 1
 		}
 
