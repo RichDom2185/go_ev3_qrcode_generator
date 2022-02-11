@@ -1,13 +1,3 @@
-// Copyright ©2016 The ev3go Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-
-// The Go gopher was designed by Renee French and is
-// licensed under the Creative Commons Attributions 3.0.
-
-// demo is a reimplementation of the Demo program loaded on new ev3 bricks,
-// without sound. It demonstrates the use of the ev3dev Go API.
-// The control does not make full use of the ev3dev API where it could.
 package main
 
 import (
