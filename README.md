@@ -41,5 +41,5 @@ $ GOOS=linux GOARCH=arm GOARM=5 go build main.go
 ```
 
 ## Todo
-[ ] Refactor to allow for easier customisability
-[ ] Containerise using Docker
+- [ ] Refactor to allow for easier customisability
+- [ ] Containerise using Docker
