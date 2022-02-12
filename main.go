@@ -39,7 +39,7 @@ func main() {
 	check(err)
 	q.DisableBorder = true
 	s := q.ToString(true)
-	b := []byte(s)
+	characters := []rune(s)
 
 	// EV3 display resolution is 128 rows x 178 columns
 	const ROW_NUM_BYTES int = 24
@@ -71,17 +71,17 @@ func main() {
 
 	var row []byte = make([]byte, LEFT_MARGIN)
 
-	for pointer := 0; pointer < len(b); { // iterate through entire QR code data
-		if b[pointer] == 226 {
+	for pointer := 0; pointer < len(characters); { // iterate through entire QR code data
+		if characters[pointer] == 9608 {
 			// a "black" QR code sub-pixel (█). 2 such sub-pixels are
 			// needed to form a single square QR code pixel.
-			// b[i:i+6] == [226, 150, 136, 266, 150, 136]
+			// b[i:i+2] == [9608]
 			for i := 0; i < SCALE_FACTOR; i++ {
 				row_buffer = append(row_buffer, true)
 			}
 
-			pointer += 6 // next QR code pixel
-		} else if b[pointer] == 32 {
+			pointer += 2 // next QR code pixel
+		} else if characters[pointer] == 32 {
 			// a "white" QR code pixel -- a simple space character ( ).
 			// 2 such characters are needed to form a single square QR code pixel.
 			// b[i:i+2] == [32, 32]
