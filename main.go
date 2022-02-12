@@ -20,6 +20,23 @@ func check(e error) {
 	}
 }
 
+func toPixels(chars []rune) []rune {
+	// Convert the sequence of UTF-8 characters from the QR code into
+	// a simpler format by removing the 2nd character of each pixel.
+	// Normally, 2 identical characters are needed ("██" or "  ")
+	// in order to form a square shape.
+	pointer := 0
+	for i := 0; i < len(chars); pointer++ {
+		chars[pointer] = chars[i]
+		if chars[i] == 10 { // newline (1 char)
+			i++
+		} else { // pixel (2 chars)
+			i += 2
+		}
+	}
+	return chars[:pointer]
+}
+
 func main() {
 	ev3.LCD.Init(true)
 	defer ev3.LCD.Close()
@@ -30,16 +47,15 @@ func main() {
 	secret := string(data)
 	secret = strings.TrimSpace(secret)
 	secret = strings.ReplaceAll(secret, "-", "")
-	secret_int := new(big.Int)
-	secret_int.SetString(secret, 16)
+	secret_int, _ := new(big.Int).SetString(secret, 16)
 	secret = secret_int.Text(62)
 
 	// Create QR code
-	q, err := qrcode.New(secret, qrcode.Low) // 25 x 25 without border
+	qr, err := qrcode.New(secret, qrcode.Low) // 25 x 25 without border
 	check(err)
-	q.DisableBorder = true
-	s := q.ToString(true)
-	characters := []rune(s)
+	qr.DisableBorder = true
+	s := qr.ToString(true)
+	pixels := toPixels([]rune(s))
 
 	// EV3 display resolution is 128 rows x 178 columns
 	const ROW_NUM_BYTES int = 24
@@ -71,29 +87,14 @@ func main() {
 
 	var row []byte = make([]byte, LEFT_MARGIN)
 
-	for pointer := 0; pointer < len(characters); { // iterate through entire QR code data
-		if characters[pointer] == 9608 {
-			// a "black" QR code sub-pixel (█). 2 such sub-pixels are
-			// needed to form a single square QR code pixel.
-			// b[i:i+2] == [9608]
+	for _, pixel := range pixels { // iterate through entire QR code data
+		switch pixel {
+		case 9608, 32: // pixel ('█' or ' ' respectively)
+			value := pixel == 9608 // true if pixel is '█'
 			for i := 0; i < SCALE_FACTOR; i++ {
-				row_buffer = append(row_buffer, true)
+				row_buffer = append(row_buffer, value)
 			}
-
-			pointer += 2 // next QR code pixel
-		} else if characters[pointer] == 32 {
-			// a "white" QR code pixel -- a simple space character ( ).
-			// 2 such characters are needed to form a single square QR code pixel.
-			// b[i:i+2] == [32, 32]
-			for i := 0; i < SCALE_FACTOR; i++ {
-				row_buffer = append(row_buffer, false)
-			}
-
-			pointer += 2 // next QR code pixel
-		} else {
-			// newline, end of row.
-			// b[i] == 10
-
+		case 10: // newline, \n
 			// append the remaining bits to the row buffer
 			// to complete a whole byte
 			row_buffer = append(row_buffer, make([]bool, ROW_BUFFER_PADDING)...)
@@ -103,7 +104,7 @@ func main() {
 					// little endian - order of bits is reversed
 					byte_ |= 1 << uint(index%8)
 				}
-				if (index % 8) == 7 {
+				if (index % 8) == 7 { // close byte
 					row = append(row, byte_)
 					byte_ = byte(0)
 				}
@@ -116,9 +117,7 @@ func main() {
 
 			row = make([]byte, LEFT_MARGIN) // start off a new row
 			row_buffer = nil                // reset row buffer
-			pointer += 1                    // next QR code pixel
 		}
-
 	}
 
 	output = append(output, bytes.Repeat(EMPTY_ROW, BOTTOM_MARGIN)...)
