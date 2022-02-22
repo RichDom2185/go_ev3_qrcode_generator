@@ -1,4 +1,4 @@
-module github.com/RichDom2185/go_ev3dev_qrcode_generator
+module github.com/RichDom2185/go_ev3_qrcode_generator
 
 go 1.17
 
