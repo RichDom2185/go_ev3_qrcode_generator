@@ -20,22 +20,48 @@ func check(e error) {
 	}
 }
 
-func toPixels(chars []rune) []rune {
+func toPixels(chars []rune) [QR_CODE_SIZE][QR_CODE_SIZE]bool {
 	// Convert the sequence of UTF-8 characters from the QR code into
 	// a simpler format by removing the 2nd character of each pixel.
 	// Normally, 2 identical characters are needed ("██" or "  ")
 	// in order to form a square shape.
-	pointer := 0
-	for i := 0; i < len(chars); pointer++ {
-		chars[pointer] = chars[i]
+	var pixels [QR_CODE_SIZE][QR_CODE_SIZE]bool
+	row := 0
+	col := 0
+	for i := 0; i < len(chars); col = (col + 1) % QR_CODE_SIZE {
 		if chars[i] == 10 { // newline (1 char)
+			row++
+			col-- // newline is not a pixel
 			i++
 		} else { // pixel (2 chars)
+			pixels[row][col] = chars[i] == '█'
 			i += 2
 		}
 	}
-	return chars[:pointer]
+	return pixels
 }
+
+// EV3 display resolution is 128 rows x 178 columns
+const ROW_NUM_BYTES int = 24
+const QR_CODE_SIZE int = 25
+const SLEEP_DURATION = 5 * time.Second
+
+// each pixel on the EV3 is represented by 1 bit
+// instead of using 1 byte (8 screen pixels) per QR code pixel,
+// we use a scale factor due to the limited display resolution,
+// so each QR code pixel only occupies a certain number of bits.
+const SCALE_FACTOR int = 4
+
+const VERTICAL_MARGIN int = 128 - (QR_CODE_SIZE * SCALE_FACTOR) // DO NOT CHANGE
+const BOTTOM_MARGIN int = VERTICAL_MARGIN/2 - 1                 // DO NOT CHANGE
+const TOP_MARGIN int = VERTICAL_MARGIN - BOTTOM_MARGIN          // DO NOT CHANGE
+// Top margin is always >= bottom margin for visibility as
+// the top of the EV3 has more shadow, reducing contrast
+const ROW_BUFFER_PADDING int = 8 - (QR_CODE_SIZE*SCALE_FACTOR)%8                                         // DO NOT CHANGE
+const HORIZONTAL_MARGIN int = (ROW_NUM_BYTES*8 - (QR_CODE_SIZE * SCALE_FACTOR) - ROW_BUFFER_PADDING) / 8 // DO NOT CHANGE
+const LEFT_MARGIN_SIZE int = HORIZONTAL_MARGIN / 2                                                       // DO NOT CHANGE
+const ROW_BUFFER_SIZE = QR_CODE_SIZE * SCALE_FACTOR                                                      // DO NOT CHANGE
+const ROW_BODY_BYTES = ROW_NUM_BYTES - HORIZONTAL_MARGIN                                                 // DO NOT CHANGE
 
 func main() {
 	ev3.LCD.Init(true)
@@ -57,67 +83,32 @@ func main() {
 	s := qr.ToString(true)
 	pixels := toPixels([]rune(s))
 
-	// EV3 display resolution is 128 rows x 178 columns
-	const ROW_NUM_BYTES int = 24
-	const QR_CODE_SIZE int = 25
-	const SLEEP_DURATION = 5 * time.Second
-
-	// each pixel on the EV3 is represented by 1 bit
-	// instead of using 1 byte (8 screen pixels) per QR code pixel,
-	// we use a scale factor due to the limited display resolution,
-	// so each QR code pixel only occupies a certain number of bits.
-	const SCALE_FACTOR int = 4
-
-	const VERTICAL_MARGIN int = 128 - (QR_CODE_SIZE * SCALE_FACTOR) // DO NOT CHANGE
-	const BOTTOM_MARGIN int = VERTICAL_MARGIN/2 - 1                 // DO NOT CHANGE
-	const TOP_MARGIN int = VERTICAL_MARGIN - BOTTOM_MARGIN          // DO NOT CHANGE
-	// Top margin is always >= bottom margin for visibility as
-	// the top of the EV3 has more shadow, reducing contrast
-	const ROW_BUFFER_PADDING int = 8 - (QR_CODE_SIZE*SCALE_FACTOR)%8                                         // DO NOT CHANGE
-	const HORIZONTAL_MARGIN int = (ROW_NUM_BYTES*8 - (QR_CODE_SIZE * SCALE_FACTOR) - ROW_BUFFER_PADDING) / 8 // DO NOT CHANGE
-	const LEFT_MARGIN int = HORIZONTAL_MARGIN / 2                                                            // DO NOT CHANGE
-	const RIGHT_MARGIN int = HORIZONTAL_MARGIN - LEFT_MARGIN                                                 // DO NOT CHANGE
-
 	EMPTY_ROW := make([]byte, ROW_NUM_BYTES) // DO NOT CHANGE
 
-	var row_buffer []bool
+	var row_buffer []bool = make([]bool, ROW_BUFFER_SIZE)
 	var output []byte
 
 	output = append(output, bytes.Repeat(EMPTY_ROW, TOP_MARGIN)...)
 
-	var row []byte = make([]byte, LEFT_MARGIN)
+	var row []byte = make([]byte, ROW_NUM_BYTES)
 
-	for _, pixel := range pixels { // iterate through entire QR code data
-		switch pixel {
-		case 9608, 32: // pixel ('█' or ' ' respectively)
-			value := pixel == 9608 // true if pixel is '█'
-			for i := 0; i < SCALE_FACTOR; i++ {
-				row_buffer = append(row_buffer, value)
-			}
-		case 10: // newline, \n
-			// append the remaining bits to the row buffer
-			// to complete a whole byte
-			row_buffer = append(row_buffer, make([]bool, ROW_BUFFER_PADDING)...)
-			var byte_ byte
-			for index, bit := range row_buffer {
-				if bit {
-					// little endian - order of bits is reversed
-					byte_ |= 1 << uint(index%8)
-				}
-				if (index % 8) == 7 { // close byte
-					row = append(row, byte_)
-					byte_ = byte(0)
-				}
-			}
-
-			row = append(row, make([]byte, RIGHT_MARGIN)...) // complete row
-
-			// paste the row SCALE_FACTOR times to preserve aspect ratio
-			output = append(output, bytes.Repeat(row, SCALE_FACTOR)...)
-
-			row = make([]byte, LEFT_MARGIN) // start off a new row
-			row_buffer = nil                // reset row buffer
+	for _, pixel_row := range pixels {
+		for i := 0; i < ROW_BODY_BYTES; i++ {
+			row[LEFT_MARGIN_SIZE+i] = 0 // clear row
 		}
+		for i := range row_buffer {
+			row_buffer[i] = pixel_row[i/SCALE_FACTOR]
+		}
+		// var byte_ byte
+		for index, bit := range row_buffer {
+			if bit {
+				// little endian - order of bits is reversed
+				row[LEFT_MARGIN_SIZE+index/8] |= 1 << uint(index%8)
+				// byte_ |= 1 << uint(index%8)
+			}
+		}
+		// paste the row SCALE_FACTOR times to preserve aspect ratio
+		output = append(output, bytes.Repeat(row, SCALE_FACTOR)...)
 	}
 
 	output = append(output, bytes.Repeat(EMPTY_ROW, BOTTOM_MARGIN)...)
