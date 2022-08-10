@@ -4,14 +4,48 @@ import (
 	"bytes"
 	"image"
 	"image/draw"
-	"io/ioutil"
 	"math/big"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/ev3go/ev3"
 	"github.com/ev3go/ev3dev/fb"
 	qrcode "github.com/skip2/go-qrcode"
+)
+
+const (
+	// Input file containing the string to generate a QR code from
+	inputFilePath = "/var/lib/sling/secret"
+
+	// Allows for adjustments to cater to varying display resolutions
+	// and QR code sizes. In the EV3, each pixel on the display is
+	// represented by 1 bit. Hence, scaleFactor corresponds to how much
+	// each QR code pixel is scaled to match the display pixels.
+	//
+	// For example: a scaleFactor of 5 means that each small black/white
+	// square in the QR code measures 5x5 pixels in the actual display.
+	scaleFactor = 4
+
+	// How long to display the QR code before the program exits
+	sleepDuration = 5 * time.Second
+
+	// DO NOT CHANGE THE FOLLOWING VALUES
+
+	// EV3 display resolution is 128 rows x 178 columns
+	ROW_NUM_BYTES = 24
+	QR_CODE_SIZE  = 25
+
+	VERTICAL_MARGIN = 128 - (QR_CODE_SIZE * scaleFactor)
+	BOTTOM_MARGIN   = VERTICAL_MARGIN/2 - 1
+	// Top margin is always >= bottom margin for visibility as
+	// the top of the EV3 has more shadow, reducing contrast
+	TOP_MARGIN = VERTICAL_MARGIN - BOTTOM_MARGIN
+
+	ROW_BUFFER_PADDING = 8 - (QR_CODE_SIZE*scaleFactor)%8
+	HORIZONTAL_MARGIN  = (ROW_NUM_BYTES*8 - (QR_CODE_SIZE * scaleFactor) - ROW_BUFFER_PADDING) / 8
+	LEFT_MARGIN        = HORIZONTAL_MARGIN / 2
+	RIGHT_MARGIN       = HORIZONTAL_MARGIN - LEFT_MARGIN
 )
 
 func check(e error) {
@@ -42,7 +76,7 @@ func main() {
 	defer ev3.LCD.Close()
 
 	// Read secret from system
-	data, err := ioutil.ReadFile("/var/lib/sling/secret")
+	data, err := os.ReadFile(inputFilePath)
 	check(err)
 	secret := string(data)
 	secret = strings.TrimSpace(secret)
@@ -57,27 +91,6 @@ func main() {
 	s := qr.ToString(true)
 	pixels := toPixels([]rune(s))
 
-	// EV3 display resolution is 128 rows x 178 columns
-	const ROW_NUM_BYTES int = 24
-	const QR_CODE_SIZE int = 25
-	const SLEEP_DURATION = 5 * time.Second
-
-	// each pixel on the EV3 is represented by 1 bit
-	// instead of using 1 byte (8 screen pixels) per QR code pixel,
-	// we use a scale factor due to the limited display resolution,
-	// so each QR code pixel only occupies a certain number of bits.
-	const SCALE_FACTOR int = 4
-
-	const VERTICAL_MARGIN int = 128 - (QR_CODE_SIZE * SCALE_FACTOR) // DO NOT CHANGE
-	const BOTTOM_MARGIN int = VERTICAL_MARGIN/2 - 1                 // DO NOT CHANGE
-	const TOP_MARGIN int = VERTICAL_MARGIN - BOTTOM_MARGIN          // DO NOT CHANGE
-	// Top margin is always >= bottom margin for visibility as
-	// the top of the EV3 has more shadow, reducing contrast
-	const ROW_BUFFER_PADDING int = 8 - (QR_CODE_SIZE*SCALE_FACTOR)%8                                         // DO NOT CHANGE
-	const HORIZONTAL_MARGIN int = (ROW_NUM_BYTES*8 - (QR_CODE_SIZE * SCALE_FACTOR) - ROW_BUFFER_PADDING) / 8 // DO NOT CHANGE
-	const LEFT_MARGIN int = HORIZONTAL_MARGIN / 2                                                            // DO NOT CHANGE
-	const RIGHT_MARGIN int = HORIZONTAL_MARGIN - LEFT_MARGIN                                                 // DO NOT CHANGE
-
 	EMPTY_ROW := make([]byte, ROW_NUM_BYTES) // DO NOT CHANGE
 
 	var row_buffer []bool
@@ -91,7 +104,7 @@ func main() {
 		switch pixel {
 		case 9608, 32: // pixel ('█' or ' ' respectively)
 			value := pixel == 9608 // true if pixel is '█'
-			for i := 0; i < SCALE_FACTOR; i++ {
+			for i := 0; i < scaleFactor; i++ {
 				row_buffer = append(row_buffer, value)
 			}
 		case 10: // newline, \n
@@ -113,7 +126,7 @@ func main() {
 			row = append(row, make([]byte, RIGHT_MARGIN)...) // complete row
 
 			// paste the row SCALE_FACTOR times to preserve aspect ratio
-			output = append(output, bytes.Repeat(row, SCALE_FACTOR)...)
+			output = append(output, bytes.Repeat(row, scaleFactor)...)
 
 			row = make([]byte, LEFT_MARGIN) // start off a new row
 			row_buffer = nil                // reset row buffer
@@ -140,6 +153,6 @@ func main() {
 
 	// Render the secret image to the LCD
 	draw.Draw(ev3.LCD, ev3.LCD.Bounds(), secret_image, secret_image.Bounds().Min, draw.Src)
-	time.Sleep(SLEEP_DURATION)
+	time.Sleep(sleepDuration)
 
 }
