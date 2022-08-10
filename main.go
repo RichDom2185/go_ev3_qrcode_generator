@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"image"
 	"image/draw"
 	"os"
@@ -16,6 +17,8 @@ import (
 const (
 	// Input file containing the string to generate a QR code from
 	inputFilePath = "/var/lib/sling/secret_b62"
+	// Output file for PNG image of QR code
+	outputImagePath = "/var/lib/sling/secret_image.png"
 
 	// Allows for adjustments to cater to varying display resolutions
 	// and QR code sizes. In the EV3, each pixel on the display is
@@ -83,6 +86,13 @@ func main() {
 		panic(err)
 	}
 	qr.DisableBorder = true
+
+	if _, err := os.Stat(outputImagePath); errors.Is(err, os.ErrNotExist) {
+		// Image does not exist, save QR code to disk
+		// Ignore any errors
+		qr.WriteFile(-scaleFactor, outputImagePath)
+	}
+
 	s := qr.ToString(true)
 	pixels := toPixels([]rune(s))
 
