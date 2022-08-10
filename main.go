@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"image"
 	"image/draw"
-	"math/big"
 	"os"
 	"strings"
 	"time"
@@ -16,7 +15,7 @@ import (
 
 const (
 	// Input file containing the string to generate a QR code from
-	inputFilePath = "/var/lib/sling/secret"
+	inputFilePath = "/var/lib/sling/secret_b62"
 
 	// Allows for adjustments to cater to varying display resolutions
 	// and QR code sizes. In the EV3, each pixel on the display is
@@ -48,12 +47,6 @@ const (
 	RIGHT_MARGIN       = HORIZONTAL_MARGIN - LEFT_MARGIN
 )
 
-func check(e error) {
-	if e != nil {
-		panic(e)
-	}
-}
-
 func toPixels(chars []rune) []rune {
 	// Convert the sequence of UTF-8 characters from the QR code into
 	// a simpler format by removing the 2nd character of each pixel.
@@ -77,16 +70,18 @@ func main() {
 
 	// Read secret from system
 	data, err := os.ReadFile(inputFilePath)
-	check(err)
-	secret := string(data)
-	secret = strings.TrimSpace(secret)
-	secret = strings.ReplaceAll(secret, "-", "")
-	secret_int, _ := new(big.Int).SetString(secret, 16)
-	secret = secret_int.Text(62)
+	if err != nil {
+		// No printing of error message as logs won't be seen through EV3 GUI
+		panic(err)
+	}
+	secret := strings.TrimSpace(string(data))
 
 	// Create QR code
-	qr, err := qrcode.New(secret, qrcode.Low) // 25 x 25 without border
-	check(err)
+	qr, err := qrcode.New(secret, qrcode.Low) // 25 x 25 without border for a 22-character input
+	if err != nil {
+		// No printing of error message as logs won't be seen through EV3 GUI
+		panic(err)
+	}
 	qr.DisableBorder = true
 	s := qr.ToString(true)
 	pixels := toPixels([]rune(s))
