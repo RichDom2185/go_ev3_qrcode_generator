@@ -22,12 +22,14 @@ const (
 
 	// Allows for adjustments to cater to varying display resolutions
 	// and QR code sizes. In the EV3, each pixel on the display is
-	// represented by 1 bit. Hence, scaleFactor corresponds to how much
-	// each QR code pixel is scaled to match the display pixels.
+	// represented by 1 bit. Hence, displayScaleFactor corresponds to
+	// how much each QR code pixel is scaled to match the display pixels.
 	//
-	// For example: a scaleFactor of 5 means that each small black/white
+	// For example: a displayScaleFactor of 5 means that each small black/white
 	// square in the QR code measures 5x5 pixels in the actual display.
-	scaleFactor = 4
+	displayScaleFactor = 4
+	// The corresponding scale factor for the output PNG image
+	imageScaleFactor = 8
 
 	// How long to display the QR code before the program exits
 	sleepDuration = 5 * time.Second
@@ -38,14 +40,14 @@ const (
 	ROW_NUM_BYTES = 24
 	QR_CODE_SIZE  = 25
 
-	VERTICAL_MARGIN = 128 - (QR_CODE_SIZE * scaleFactor)
+	VERTICAL_MARGIN = 128 - (QR_CODE_SIZE * displayScaleFactor)
 	BOTTOM_MARGIN   = VERTICAL_MARGIN/2 - 1
 	// Top margin is always >= bottom margin for visibility as
 	// the top of the EV3 has more shadow, reducing contrast
 	TOP_MARGIN = VERTICAL_MARGIN - BOTTOM_MARGIN
 
-	ROW_BUFFER_PADDING = 8 - (QR_CODE_SIZE*scaleFactor)%8
-	HORIZONTAL_MARGIN  = (ROW_NUM_BYTES*8 - (QR_CODE_SIZE * scaleFactor) - ROW_BUFFER_PADDING) / 8
+	ROW_BUFFER_PADDING = 8 - (QR_CODE_SIZE*displayScaleFactor)%8
+	HORIZONTAL_MARGIN  = (ROW_NUM_BYTES*8 - (QR_CODE_SIZE * displayScaleFactor) - ROW_BUFFER_PADDING) / 8
 	LEFT_MARGIN        = HORIZONTAL_MARGIN / 2
 	RIGHT_MARGIN       = HORIZONTAL_MARGIN - LEFT_MARGIN
 )
@@ -85,13 +87,14 @@ func main() {
 		// No printing of error message as logs won't be seen through EV3 GUI
 		panic(err)
 	}
-	qr.DisableBorder = true
 
 	if _, err := os.Stat(outputImagePath); errors.Is(err, os.ErrNotExist) {
 		// Image does not exist, save QR code to disk
 		// Ignore any errors
-		qr.WriteFile(-scaleFactor, outputImagePath)
+		qr.WriteFile(-imageScaleFactor, outputImagePath)
 	}
+
+	qr.DisableBorder = true
 
 	s := qr.ToString(true)
 	pixels := toPixels([]rune(s))
@@ -109,7 +112,7 @@ func main() {
 		switch pixel {
 		case 9608, 32: // pixel ('█' or ' ' respectively)
 			value := pixel == 9608 // true if pixel is '█'
-			for i := 0; i < scaleFactor; i++ {
+			for i := 0; i < displayScaleFactor; i++ {
 				row_buffer = append(row_buffer, value)
 			}
 		case 10: // newline, \n
@@ -131,7 +134,7 @@ func main() {
 			row = append(row, make([]byte, RIGHT_MARGIN)...) // complete row
 
 			// paste the row SCALE_FACTOR times to preserve aspect ratio
-			output = append(output, bytes.Repeat(row, scaleFactor)...)
+			output = append(output, bytes.Repeat(row, displayScaleFactor)...)
 
 			row = make([]byte, LEFT_MARGIN) // start off a new row
 			row_buffer = nil                // reset row buffer
