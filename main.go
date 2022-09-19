@@ -32,7 +32,7 @@ const (
 	imageScaleFactor = 8
 
 	// How long to display the QR code before the program exits
-	sleepDuration = 5 * time.Second
+	sleepDuration = 10 * time.Second
 
 	// DO NOT CHANGE THE FOLLOWING VALUES
 
